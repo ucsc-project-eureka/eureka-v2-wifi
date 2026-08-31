@@ -39,7 +39,7 @@ uint8_t sectorBuf[512];
 #define DEBUG_PORT SerialUSB
 
 SFE_UBLOX_GNSS myGNSS;
-#define SOIL_I2C 0x42
+#define SOIL_I2C 0x36
 
 #define BME_SCK 13
 #define BME_MISO 12
@@ -256,8 +256,7 @@ void setup(){
   // Check initialization of every sensor relevant to EUREKA project.
   checkBme680();
   checkIna3221();
-
-  checkM10S();
+  // checkM10S();
   checkSoilSensor(); // Note: I2C address not specified for soil sensor yet, this will be errored.
 }
 
