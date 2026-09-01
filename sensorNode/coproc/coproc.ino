@@ -163,11 +163,11 @@ bool getDataFlag = false;
 void setup(){
   // turn on the radio from the coproc
   PORT->Group[0].DIRSET.reg = PORT_PA17;
-  PORT->Group[0].OUTSET.reg = PORT_PA17;
+  PORT->Group[0].OUTCLR.reg = PORT_PA17;
 
   // DEBUG
-  DEBUG_PORT.begin(115200);
-  while(!DEBUG_PORT);
+  // DEBUG_PORT.begin(115200);
+  // while(!DEBUG_PORT);
 
   // Get UART connecting coproc and esp32 online.
   ESP_PORT.begin(ESP_BAUD); // UART, coproc->esp32 and vice versa.
@@ -180,8 +180,8 @@ void setup(){
   bme.begin(0x77,&Wire);
   ss.begin(SOIL_I2C);
   // give the sensors time to boot.
-  checkIna3221();
-  checkBme680();
+  // checkIna3221();
+  // checkBme680();
   // checkSoilSensor();
   return;
 }
