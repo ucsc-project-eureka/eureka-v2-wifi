@@ -1,7 +1,17 @@
 
 /*
-NOTE: This should be compiled with the ESP32S3 Dev Module with CDC on Boot enabled.
-*/
+Author:  PaskKat
+Date: 7/20/2026
+Board in Arduino IDE: ESP32S3 Dev Module with CDC on Boot enabled
+
+Purpose: Receive and retransmit the data discovery message from the sink,
+          TDMA schedule sensor nodes within its network, 
+          aggregate data received from the sensor nodes and transmit to the sink.
+
+Hardware:
+    - Board: Heltec v3 esp32-s3 with SX1262, on the UCSC Airwise project's v2 board
+    - Sensors Used: N/A, this is for the esp32 radio microcontroller
+*/ 
 
 #include <WiFi.h>
 #include <esp_now.h>
@@ -17,10 +27,10 @@ uint8_t broadcastAddress[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 uint8_t sinkMAC[6];
 bool sinkMACKnown = false;
 
-const unsigned long packetInterval = 3000;  // Time in milliseconds
+const unsigned long packetInterval = 3000;
 unsigned long lastPacketSentTime = 0;
 
-// Default C++ enum values are type int
+// Struct defs ------------------------------------------------------
 enum messageType : uint8_t {
   DISCOVERY = 1,
   JOIN_REQUEST,
@@ -29,10 +39,9 @@ enum messageType : uint8_t {
   AGGREGATE_DATA
 };
 
-// Packet structures
 struct discoveryPacket_t {
-  uint8_t type;      // Packet type identifier
-  uint8_t hopCount;  // Hop count away from the sink
+  uint8_t type;      
+  uint8_t hopCount;  
   uint8_t roundCounter;
 };
 
@@ -42,7 +51,7 @@ struct joinRequestPacket_t {
 
 struct tdmaSchedulePacket_t {
   uint8_t type;
-  uint8_t macs[MAX_SENSOR_NODES][6];  // List of sensor node MACs
+  uint8_t macs[MAX_SENSOR_NODES][6]; 
 };
 
 struct sensorDataPacket_t {
@@ -63,7 +72,7 @@ struct aggregateDataPacket_t {
   uint8_t readingsCount;
 };
 
-// Global variables
+// Globals ------------------------------------------------------
 unsigned long discoverySentTime = 0;
 unsigned long scheduleSentTime = 0;
 
@@ -86,7 +95,8 @@ unsigned long sendTime;
 
 esp_now_peer_info_t peerInfo;
 
-// send a "give me data" ping. Assuming peer channel is the broadcast channel.
+// Helpers --------------------------------------------------------------
+
 void sendDiscoveryPacket(discoveryPacket_t* sinkPkt){
   discoveryPacket_t recvPkt;
   memcpy(&recvPkt, sinkPkt, sizeof(discoveryPacket_t));
@@ -102,7 +112,6 @@ void sendDiscoveryPacket(discoveryPacket_t* sinkPkt){
 }
 
 void handleDiscoveryPacket(const uint8_t* senderMAC, const discoveryPacket_t* packet){
-  // Mark the clusterhead as assigned to that sender & register.
   if (!sinkMACKnown){
     memcpy(sinkMAC,senderMAC,6);
     sinkMACKnown = true;
@@ -124,8 +133,6 @@ void handleDiscoveryPacket(const uint8_t* senderMAC, const discoveryPacket_t* pa
 }
 
 void handleJoinRequest(const uint8_t* senderMAC) {
-
-  // Check if MAC is already recorded
   for (uint8_t i = 0; i < sensorNodeCount; ++i) {
     if (memcmp(sensorNodeMACs[i], senderMAC, 6) == 0){
       DEBUG_PORT.println("Sensor node MAC address is already recorded");
@@ -209,7 +216,6 @@ void sendTDMASchedule() {
 }
 
 void sendAggregatePacket(){
-  // send pkt back to sink.
   aggData.type = AGGREGATE_DATA;
   aggData.readingsCount = sensorNodeCount;
   esp_now_send(sinkMAC,(uint8_t*)&aggData,sizeof(aggregateDataPacket_t));
@@ -229,8 +235,6 @@ void readMacAddress(){
 }
 
 void OnDataRecv(const esp_now_recv_info* recvInfo, const uint8_t* incomingData, int len) {
-  // Determine type of packet received
-  // get the source address.
   const uint8_t* senderMac = recvInfo->src_addr;
   uint8_t packetType = incomingData[0];
 
@@ -271,7 +275,6 @@ void setup(){
   DEBUG_PORT.println("[DEFAULT] ESP32 Board MAC Address: ");
   readMacAddress();
 
-  // adding peer so that broadcast is sent
   memcpy(peerInfo.peer_addr, broadcastAddress, 6);
   peerInfo.channel = 0;
   peerInfo.encrypt = false;
@@ -288,7 +291,6 @@ void loop(){
     DEBUG_PORT.println("Finished waiting for JOIN_REQUESTs.");
     waitingForJoinRequests = false;
 
-    // Send TDMA schedule only if it had sensors join it.
     if (joinCount >= 1){
       sendTDMASchedule();
     }
@@ -303,9 +305,7 @@ void loop(){
   if (waitingForSensorData && millis() - scheduleSentTime > SENSOR_RESPONSE_TIMEOUT) {
     DEBUG_PORT.println("Finished waiting for Sensor Data.");
     waitingForSensorData = false;
-    // Once all sensors have reported data, send the agg data to the sink.
     sendAggregatePacket();
-    // Reset all prior conditions, packages, and flags.
     sentDiscovery = false;
     sensorNodeCount = 0;
     joinCount = 0;

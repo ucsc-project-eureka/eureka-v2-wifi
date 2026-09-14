@@ -1,24 +1,31 @@
 
 /*
-NOTE: This should be compiled with the ESP32S3 Dev Module with CDC on Boot enabled.
-*/
+Author: PaskKat
+Date: 7/20/2026
+Board in Arduino IDE: ESP32 S3 Dev Module, CDC on Boot enabled.
+
+Purpose: Send data requests every 10 seconds, receive and display aggregate data
+         sent back from the cluster heads.
+
+Hardware:
+    - Board:
+    - Sensors Used:
+
+*/ 
 
 #include <WiFi.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
 
-#define DATA_GET_INTERVAL 10000 // sending the "give me data" ping every 10 seconds.
+#define DATA_GET_INTERVAL 10000
 #define MAX_SENSOR_NODES 3
 #define DEBUG_PORT Serial
 #define MAX_CLUSTERHEADS 1
-
-
-// DEFS ---------------------------------------------------------------
 uint8_t broadcastAddress[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 uint8_t clusterHeadMACs[MAX_CLUSTERHEADS][6];
-unsigned long clusterHeadCount = 0;
 
-// Default C++ enum values are type int
+// Packet Defs ---------------------------------------------------------------
+
 enum messageType : uint8_t {
   DISCOVERY = 1,
   JOIN_REQUEST,
@@ -27,10 +34,9 @@ enum messageType : uint8_t {
   AGGREGATE_DATA
 };
 
-// Packet structures
 struct discoveryPacket_t {
-  uint8_t type;      // Packet type identifier
-  uint8_t hopCount;  // Hop count away from the sink
+  uint8_t type;    
+  uint8_t hopCount;
   uint8_t roundCounter;
 };
 
@@ -40,7 +46,7 @@ struct joinRequestPacket_t {
 
 struct tdmaSchedulePacket_t {
   uint8_t type;
-  uint8_t macs[MAX_SENSOR_NODES][6];  // List of sensor node MACs
+  uint8_t macs[MAX_SENSOR_NODES][6];
 };
 
 struct sensorDataPacket_t {
@@ -61,7 +67,7 @@ struct aggregateDataPacket_t {
   uint8_t readingsCount;
 };
 
-// Global variables
+// Globals -----------------------------------------------------------
 
 aggregateDataPacket_t aggregatePackets[MAX_CLUSTERHEADS];
 bool sentDiscovery = false;
@@ -69,12 +75,13 @@ bool sentDiscovery = false;
 aggregateDataPacket_t aggData;
 discoveryPacket_t discPkt;
 
+unsigned long clusterHeadCount = 0;
 unsigned long startTime;
 unsigned long currentTime;
 unsigned long sendTime;
 unsigned long roundCount;
 
-// Helpers ----------------------------------------------------------
+// Helpers ------------------------------------------------------------
 
 void sendDiscoveryPacket(){
   discPkt.type = DISCOVERY;
@@ -100,7 +107,6 @@ bool clusterHeadMACKnown(uint8_t* MAC){
   return flag;
 }
 
-// Unfinished - need to complete the second portion of reading out all the collected data.
 void handleAggregatePacket(const uint8_t* CHMAC, aggregateDataPacket_t* aggPkt){
   uint8_t packetMAC[6];
   memcpy(packetMAC,CHMAC,6);
@@ -144,7 +150,7 @@ void onDataRecv(const esp_now_recv_info* recvInfo, const uint8_t* incomingData,i
   return;
 }
 
-// MAIN -------------------------------------------------------------
+// MAIN ---------------------------------------------------------------
 
 void setup() {
   DEBUG_PORT.begin(115200);
@@ -168,13 +174,10 @@ void setup() {
 void loop() {
   currentTime = millis();
   if (currentTime - sendTime >= DATA_GET_INTERVAL){
-    // Future: print out all aggData packets all at once. First, you need to define a timeout.
-    // Once finished, reset all used conditions.
     clusterHeadCount = 0;
     memset(&aggregatePackets,0,sizeof(aggregatePackets));
     memset(&discPkt, 0, sizeof(discPkt));
     roundCount++;
-    // sentDiscovery = false;
     sendDiscoveryPacket();
     sentDiscovery = true;
   }

@@ -1,9 +1,18 @@
 
 /*
-NOTE: Compile this with the ESP32S3 dev module Arduino board.
-*/
+Author: PaskKat
+Date: 6/25/2026
+Board in Arduino IDE: ESP32 S3 Dev Module
 
-// if join request already sent, DO NOT send another join request. Assume it's already connected.
+Purpose: Fetch sensor readings form the coproc when prompted.
+          Receive TDMA scheduling and respond accordingly to the clusterhead.
+
+Hardware:
+    - Board: Heltec v3 ESP32 microcontroller on the UCSC Airwise project's v2 board
+    - Sensors Used: N/A, this is cthe code for the radio microcontroller only.
+
+*/ 
+
 #include <Wire.h>
 #include <SPI.h>
 #include <esp_now.h>
@@ -15,12 +24,12 @@ NOTE: Compile this with the ESP32S3 dev module Arduino board.
 #define DEBUG_PORT Serial
 #define COPROC_PORT Serial1
 
+// Pinouts -------------------------------------------------------------------
 #define ESP_BAUD 9600
-
-// From Airwise's ESP32 UART connections.
 #define ESP_PIN_TX 43
 #define ESP_PIN_RX 44
 
+// Globals -------------------------------------------------------------------
 unsigned long scheduledSlotTime = 0;
 
 bool hasJoined = false;
@@ -36,6 +45,8 @@ bool sinkMACKnown = false;
 
 uint8_t clusterheadMAC[6];
 uint8_t mySlotIndex = 255;
+
+// Packet Defs ----------------------------------------------------------------
 
 enum messageType : uint8_t {
   DISCOVERY = 1,
@@ -70,7 +81,6 @@ struct sensorDataPacket_t {
 
 // Helpers -----------------------------------------------------------------
 
-// in case to let other sensors know.
 void sendJoinRequest() {
   if (hasJoined||sentJoinRequest) return;
   joinRequestPacket_t joinPacket = { JOIN_REQUEST };
@@ -79,7 +89,6 @@ void sendJoinRequest() {
   sentJoinRequest = true;
 }
 
-// in case of received discovery packet.
 void handleDiscoveryPacket(const uint8_t *senderMAC, const discoveryPacket_t *packet){
   DEBUG_PORT.println("Discovery packet received!");
   if (packet->hopCount == 0) return;
@@ -87,7 +96,6 @@ void handleDiscoveryPacket(const uint8_t *senderMAC, const discoveryPacket_t *pa
   if (!clusterheadMACKnown) {
     memcpy(clusterheadMAC, senderMAC, 6);
     clusterheadMACKnown = true;
-    // Register clusterhead as peer now that we have its MAC
     esp_now_peer_info_t  peerInfo = {};
     memcpy(peerInfo.peer_addr, clusterheadMAC, 6);
     peerInfo.channel = 0;
@@ -108,7 +116,6 @@ void handleDiscoveryPacket(const uint8_t *senderMAC, const discoveryPacket_t *pa
   }
 }
 
-// in case of received schedule packet.
 void handleSchedulePacket(const uint8_t *senderMAC, const tdmaSchedulePacket_t *packet) {
   scheduleReceived = true;
   DEBUG_PORT.println("Received schedule packet!");
@@ -128,9 +135,8 @@ void handleSchedulePacket(const uint8_t *senderMAC, const tdmaSchedulePacket_t *
   mySlotIndex = 255;
 }
 
-// ESP32 correct callback
 void OnDataRecv(const esp_now_recv_info *recv_info, const uint8_t *incomingData, int len) {
-  const uint8_t *senderMac = recv_info->src_addr; // source MAC address.
+  const uint8_t *senderMac = recv_info->src_addr;
   uint8_t packetType = incomingData[0];
   switch (packetType) {
     case DISCOVERY:
@@ -152,17 +158,12 @@ void setup(){
   DEBUG_PORT.begin(115200);
   while(!DEBUG_PORT);
   COPROC_PORT.begin(ESP_BAUD, SERIAL_8N1, ESP_PIN_RX, ESP_PIN_TX);
-
   WiFi.disconnect(true);
   delay(1000);
   WiFi.mode(WIFI_STA);
-
   if (esp_now_init() != ESP_OK) {
     return;
   }
-
-  // setup the broadcast channel.
-  // adding peer so that broadcast is sent
   esp_now_peer_info_t broadcastInfo = {};
   memcpy(broadcastInfo.peer_addr, broadcastAddress, 6);
   broadcastInfo.channel = 0;
@@ -174,16 +175,13 @@ void setup(){
 
 void loop() {
   if (scheduleReceived && hasJoined && millis() >= scheduledSlotTime){
-    // Trigger the coproc to send sensor data to ESP32.
     COPROC_PORT.println("SENSOR_DATA");
-    // Wait a period to recieve data back. Wait for coproc to respond.
     while(!(COPROC_PORT.available()));
     sensorDataPacket_t dataPacket;
-    if (COPROC_PORT.available() && !sentPacket) {
+    if (COPROC_PORT.available() && !sentPacket){
       String header = COPROC_PORT.readStringUntil('\n');
       header.trim();
       if (header == "SENSOR_DATA:") {
-        // Get data from printline serial from coproc.
         dataPacket.type         = SENSOR_DATA;
         dataPacket.temperature  = COPROC_PORT.readStringUntil('\n').toFloat();
         dataPacket.humidity     = COPROC_PORT.readStringUntil('\n').toFloat();
@@ -192,26 +190,11 @@ void loop() {
             
         DEBUG_PORT.println("Received data from coproc!");
         DEBUG_PORT.println("");
-        // Print check what you recieved from coproc.
-        // char buff[3000];
-        // snprintf(buff, sizeof(buff),
-        // "COPROC Temperature: %f\n"
-        // "COPROC humidity: %f\n"
-        // "COPROC soilMoisture: %u\n"
-        // "COPROC timestamp: %lu\n\n", 
-        // dataPacket.temperature, 
-        // dataPacket.humidity, 
-        // dataPacket.soilMoisture,
-        // dataPacket.timestamp);
-            
-        // DEBUG_PORT.print(buff); 
         }
         else{DEBUG_PORT.println("get Data called, SENSOR_DATA was not found");}
         }
       int timeout = millis() + 2000;
-      // Only send if we actually got data
-      if (millis() < timeout) {
-        // print check what you're sending!
+      if (millis() < timeout){
         DEBUG_PORT.println("Sending this data packet:");
         char buff[3000];
         snprintf(buff, sizeof(buff),
@@ -224,8 +207,7 @@ void loop() {
         dataPacket.soilMoisture,
         dataPacket.timestamp);
         DEBUG_PORT.print(buff);
-
-        // send and confirm.
+        
         esp_now_send(clusterheadMAC, (uint8_t *)&dataPacket, sizeof(dataPacket));
         DEBUG_PORT.println("Sent Data packet!");
         sentPacket = true;
