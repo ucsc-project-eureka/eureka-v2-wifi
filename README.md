@@ -23,13 +23,13 @@ Reference below, the architecture of V1 using wifi via esp-now.
 
 Sink State Machine:
 
-![v1 Cluster Head State Machine](miscellaneous/v1Sink.png)
+![v1 Sink Head State Machine](miscellaneous/v1sink.png)
 
 Cluster Head State Machine:
 
-![v1 Sink State Machine](miscellaneous/v1ClusterHead.png)
+![v1 Cluster Head State Machine](miscellaneous/v1clusterHead.png)
 
 Sensor Node State Machine:
 
-![v1 Sensor Node State Machine](miscellaneous/v1SensorNode.png)
+![v1 Sensor Node State Machine](miscellaneous/v1sensorNode.png)
 ***
