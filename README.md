@@ -1,5 +1,5 @@
 # eureka-v2-wifi
-EUREKA hierarchical data collection rewritten to interface with the AIRWISE V2 board.
+The UCSC Computer Networking Research Group EUREKA project's sensor node data collection written to interface with the AIRWISE V2 board.
 ***
 ### Documentation included for each .ino file
 ```cpp
